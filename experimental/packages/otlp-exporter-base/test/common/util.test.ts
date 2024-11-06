@@ -26,7 +26,7 @@ describe('parseHeaders', function () {
   it('should ignore undefined headers', function () {
     // Need to stub/spy on the underlying logger as the "diag" instance is global
     const spyWarn = sinon.stub(diag, 'warn');
-    const headers: Partial<Record<string, unknown>> = {
+    const headers: Partial<Record<string, string | undefined | any>> = {
       foo1: undefined,
       foo2: 'bar',
       foo3: 1,

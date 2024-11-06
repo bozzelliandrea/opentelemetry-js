@@ -23,14 +23,14 @@ import { validateAndNormalizeHeaders } from '../util';
 
 export interface OtlpHttpConfiguration extends OtlpSharedConfiguration {
   url: string;
-  headers: Record<string, string>;
+  headers: Record<string, string | Function>;
 }
 
 function mergeHeaders(
-  userProvidedHeaders: Record<string, string> | undefined | null,
-  fallbackHeaders: Record<string, string> | undefined | null,
-  defaultHeaders: Record<string, string>
-): Record<string, string> {
+  userProvidedHeaders: Record<string, string | Function> | undefined | null,
+  fallbackHeaders: Record<string, string | Function> | undefined | null,
+  defaultHeaders: Record<string, string | Function>
+): Record<string, string | Function> {
   const requiredHeaders = {
     ...defaultHeaders,
   };
@@ -93,7 +93,7 @@ export function mergeOtlpHttpConfigurationWithDefaults(
 }
 
 export function getHttpConfigurationDefaults(
-  requiredHeaders: Record<string, string>,
+  requiredHeaders: Record<string, string | Function>,
   signalResourcePath: string
 ): OtlpHttpConfiguration {
   return {

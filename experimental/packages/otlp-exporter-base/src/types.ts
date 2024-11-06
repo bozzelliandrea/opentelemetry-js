@@ -45,7 +45,7 @@ export interface ExportServiceError {
  * Collector Exporter base config
  */
 export interface OTLPExporterConfigBase {
-  headers?: Record<string, string>;
+  headers?: Record<string, string | Function>;
   url?: string;
   concurrencyLimit?: number;
   /** Maximum time the OTLP exporter will wait for each batch export.

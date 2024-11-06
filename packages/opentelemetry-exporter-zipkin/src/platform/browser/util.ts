@@ -28,11 +28,11 @@ import * as zipkinTypes from '../../types';
  * @param headers - headers
  * send
  */
-export function prepareSend(
+export async function prepareSend(
   urlStr: string,
   headers?: Record<string, string>
-): zipkinTypes.SendFn {
-  let xhrHeaders: Record<string, string>;
+): Promise<zipkinTypes.SendFn> {
+  let xhrHeaders: Record<string, string | Function>;
   const useBeacon = typeof navigator.sendBeacon === 'function' && !headers;
   if (headers) {
     xhrHeaders = {
@@ -45,7 +45,7 @@ export function prepareSend(
   /**
    * Send spans to the remote Zipkin service.
    */
-  return function send(
+  return async function send(
     zipkinSpans: zipkinTypes.Span[],
     done: (result: ExportResult) => void
   ) {
@@ -57,7 +57,7 @@ export function prepareSend(
     if (useBeacon) {
       sendWithBeacon(payload, done, urlStr);
     } else {
-      sendWithXhr(payload, done, urlStr, xhrHeaders);
+      await sendWithXhr(payload, done, urlStr, xhrHeaders);
     }
   };
 }
@@ -91,17 +91,39 @@ function sendWithBeacon(
  * @param urlStr
  * @param xhrHeaders
  */
-function sendWithXhr(
+async function sendWithXhr(
   data: string,
   done: (result: ExportResult) => void,
   urlStr: string,
-  xhrHeaders: Record<string, string> = {}
+  xhrHeaders: Record<string, string | Function> = {}
 ) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', urlStr);
-  Object.entries(xhrHeaders).forEach(([k, v]) => {
-    xhr.setRequestHeader(k, v);
-  });
+
+  await Promise.all(
+    Object.entries(xhrHeaders).map(async ([k, v]) => {
+      if (!v) {
+        xhr.setRequestHeader(k, '');
+        return;
+      }
+
+      if (typeof v === 'string' || v instanceof String) {
+        xhr.setRequestHeader(k, v as string);
+        return;
+      }
+
+      try {
+        const result = v();
+        if (result instanceof Promise) {
+          xhr.setRequestHeader(k, String(await result));
+        } else {
+          xhr.setRequestHeader(k, String(result));
+        }
+      } catch (err) {
+        diag.error(`Failed Header [${k}] evaluation caused by: ${err}`);
+      }
+    })
+  );
 
   xhr.onreadystatechange = () => {
     if (xhr.readyState === XMLHttpRequest.DONE) {

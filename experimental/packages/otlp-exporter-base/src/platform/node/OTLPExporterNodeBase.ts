@@ -43,7 +43,7 @@ export abstract class OTLPExporterNodeBase<
   constructor(
     config: OTLPExporterNodeConfigBase = {},
     serializer: ISerializer<ExportItem[], ServiceResponse>,
-    requiredHeaders: Record<string, string>,
+    requiredHeaders: Record<string, string | Function>,
     signalIdentifier: string,
     signalResourcePath: string
   ) {

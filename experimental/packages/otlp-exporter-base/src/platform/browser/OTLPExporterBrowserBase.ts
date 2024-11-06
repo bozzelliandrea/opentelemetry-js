@@ -80,7 +80,7 @@ export abstract class OTLPExporterBrowserBase<
       // sendBeacon has no way to signal retry, so we do not wrap it in a RetryingTransport
       this._transport = createSendBeaconTransport({
         url: actualConfig.url,
-        blobType: actualConfig.headers['Content-Type'],
+        blobType: actualConfig.headers['Content-Type'] as string,
       });
     }
   }

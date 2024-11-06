@@ -24,20 +24,44 @@ import {
 
 export interface XhrRequestParameters {
   url: string;
-  headers: Record<string, string>;
+  headers: Record<string, string | Function>;
 }
 
 class XhrTransport implements IExporterTransport {
   constructor(private _parameters: XhrRequestParameters) {}
 
   send(data: Uint8Array, timeoutMillis: number): Promise<ExportResponse> {
-    return new Promise<ExportResponse>(resolve => {
+    return new Promise<ExportResponse>(async resolve => {
       const xhr = new XMLHttpRequest();
       xhr.timeout = timeoutMillis;
       xhr.open('POST', this._parameters.url);
-      Object.entries(this._parameters.headers).forEach(([k, v]) => {
-        xhr.setRequestHeader(k, v);
-      });
+
+      await Promise.all(
+        Object.entries(this._parameters.headers).map(
+          async ([k, v]: [string, string | Function]) => {
+            if (!v) {
+              xhr.setRequestHeader(k, '');
+              return;
+            }
+
+            if (typeof v === 'string' || v instanceof String) {
+              xhr.setRequestHeader(k, v as string);
+              return;
+            }
+
+            try {
+              const result = v();
+              if (result instanceof Promise) {
+                xhr.setRequestHeader(k, String(await Promise.resolve(result)));
+              } else {
+                xhr.setRequestHeader(k, String(result));
+              }
+            } catch (err) {
+              diag.error(`Failed Header [${k}] evaluation caused by: ${err}`);
+            }
+          }
+        )
+      );
 
       xhr.ontimeout = _ => {
         resolve({
@@ -81,7 +105,12 @@ class XhrTransport implements IExporterTransport {
       };
 
       xhr.send(
-        new Blob([data], { type: this._parameters.headers['Content-Type'] })
+        new Blob([data], {
+          type:
+            this._parameters.headers['Content-Type'] instanceof Function
+              ? this._parameters.headers['Content-Type']()
+              : this._parameters.headers['Content-Type'],
+        })
       );
     });
   }

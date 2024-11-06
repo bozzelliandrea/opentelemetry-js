@@ -24,6 +24,46 @@ import {
   parseRetryAfterToMills,
 } from '../../is-export-retryable';
 import { OTLPExporterError } from '../../types';
+import { diag } from '@opentelemetry/api';
+
+export async function mapHeaders(
+  headers: Record<string, string | Function>
+): Promise<Record<string, string>> {
+  const entries = await Promise.all(
+    Object.entries(headers).map(
+      async ([k, v]: [string, string | Function]): Promise<
+        [string, string]
+      > => {
+        if (!v) {
+          return [k, ''];
+        }
+
+        if (typeof v === 'string' || v instanceof String) {
+          return [k, v as string];
+        }
+
+        const result = v();
+        if (result instanceof Promise) {
+          try {
+            return [k, String(await Promise.resolve(result))];
+          } catch (err) {
+            diag.error(`Failed Header [${k}] evaluation caused by: ${err}`);
+          }
+        }
+
+        return [k, String(result)];
+      }
+    )
+  );
+
+  return entries.reduce(
+    (acc: Record<string, string>, [key, value]: [string, string]) => {
+      acc[key] = value;
+      return acc;
+    },
+    {}
+  );
+}
 
 /**
  * Sends data using http
@@ -33,24 +73,26 @@ import { OTLPExporterError } from '../../types';
  * @param onDone
  * @param timeoutMillis
  */
-export function sendWithHttp(
+export async function sendWithHttp(
   params: HttpRequestParameters,
   agent: http.Agent | https.Agent,
   data: Uint8Array,
   onDone: (response: ExportResponse) => void,
   timeoutMillis: number
-): void {
+): Promise<void> {
   const parsedUrl = new URL(params.url);
   const nodeVersion = Number(process.versions.node.split('.')[0]);
+
+  const headers = await mapHeaders(params.headers);
+
+  diag.info('ALL HEADERS: ' + JSON.stringify(headers));
 
   const options: http.RequestOptions | https.RequestOptions = {
     hostname: parsedUrl.hostname,
     port: parsedUrl.port,
     path: parsedUrl.pathname,
     method: 'POST',
-    headers: {
-      ...params.headers,
-    },
+    headers: headers,
     agent: agent,
   };
 
